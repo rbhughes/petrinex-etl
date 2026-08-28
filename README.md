@@ -1,5 +1,7 @@
 # petrinex-etl
 
+[![Petrinex logo][logo]](https://www.petrinex.ca)
+
 Fetch and normalize [Petrinex](https://www.petrinex.ca) public volumetric
 data — the monthly, well-level production/injection/disposition reporting
 for Alberta (and Saskatchewan) — into clean parquet you can query with
@@ -247,3 +249,5 @@ fetch with it.
   grain) for methane work.
 - Verified SK end-to-end build.
 - Well Infrastructure CSV -> parquet normalizer.
+
+[logo]: https://www.petrinex.ca/media/l1paitxk/petrinexlogo.jpg?width=280&height=120&v=1dac7d2bcab8d70
