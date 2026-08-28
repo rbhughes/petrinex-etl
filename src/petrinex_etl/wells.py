@@ -3,8 +3,8 @@ well (FromToIDType='WI'), all activities, one parquet per month.
 
 Keeping ALL activities (PROD, SHUTIN, INJ, VENT, FLARE, FUEL, ...) costs
 little and serves very different downstream uses: production modeling,
-shut-in detection, methane accounting. ~25 GB of raw zips distill to
-~100 MB of zstd parquet for Alberta.
+shut-in detection, methane accounting. ~420 MB of raw zips distill
+to ~100 MB of zstd parquet for Alberta.
 """
 from pathlib import Path
 

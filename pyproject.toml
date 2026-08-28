@@ -3,6 +3,7 @@ name = "petrinex-etl"
 version = "0.1.0"
 description = "Fetch and normalize Petrinex public volumetric data (Alberta, Saskatchewan)"
 requires-python = ">=3.12"
+license = {file = "LICENSE"}
 dependencies = [
     "duckdb>=1.0",
     "requests>=2.32",
