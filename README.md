@@ -290,7 +290,7 @@ converts them to centroid lat/lon with no lookup tables:
 
 ```python
 >>> latlon_from_dls(10, 15, 4, sec=19, lsd=7)
-(49.8351..., -112.0271...)   # ST37 surveyed: 49.8359, -112.0240
+(49.83589..., -112.02286...)   # ST37 surveyed: 49.83590, -112.02404
 ```
 
 The five model constants are least-squares fits against 532,623 AER
