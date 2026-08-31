@@ -20,8 +20,10 @@ rediscover it.
 pip install -e .
 petrinex probe                 # discover the live public window (it slides)
 petrinex fetch-vol             # all monthly zips (resumable; AB ~420 MB)
-petrinex fetch-infra           # well headers (licence, status, location)
-petrinex build-wells           # -> data/well_months/AB/  (~100 MB)
+petrinex fetch-infra           # well/facility/operator/BA snapshots
+petrinex build-wells           # -> data/well_months/AB/      (~100 MB)
+petrinex build-facilities      # -> data/facility_months/AB/  (~160 MB)
+petrinex build-infra           # -> data/infra/AB_*.parquet   (~8 MB)
 ```
 
 All commands take `--province AB|SK` (AB default; AB verified end-to-end,
@@ -91,12 +93,22 @@ Downloads one zip per production month into
 
 ### `petrinex fetch-infra`
 
-Downloads the Well Infrastructure CSV (one zip, ~63 MB for AB) to
-`$PETRINEX_RAW/infra/<province>_Well_Infrastructure_CSV.zip` —
-per-event well headers: identifiers, licence, status, location, linked
-facility. This is the bridge between well IDs and everything else
-(see the UWI section). Unlike volumetrics it is a single
-current-state snapshot, so re-running always overwrites it.
+Downloads the four infrastructure snapshot CSVs to
+`$PETRINEX_RAW/infra/<province>_<Name>_CSV.zip`:
+
+- **Well Infrastructure** (~63 MB) — per-event well headers:
+  identifiers, licence, status, location, linked facility. The bridge
+  between well IDs and everything else (see the UWI section).
+- **Facility Infrastructure** (~8 MB) — one row per facility: current
+  operator and licensee BAIDs, subtype, operational status, location,
+  licence, orphan flag, Directive 060 tier aggregate.
+- **Facility Operator History** (~7 MB) — full operatorship time
+  series per facility (start/end month; open interval = `9999-12`).
+- **Business Associate** (~1 MB) — the BA registry: legal name,
+  address, corporate status, amalgamation chain.
+
+Unlike volumetrics these are single current-state snapshots, so
+re-running always overwrites them.
 
 ### `petrinex build-wells`
 
@@ -118,6 +130,29 @@ Transforms every raw monthly zip into
 - Errors out with a hint if no zips are present (run `fetch-vol` first).
 - Runtime: a few seconds per month; a full AB build takes minutes.
 
+### `petrinex build-facilities`
+
+Transforms the same raw monthly zips into
+`$PETRINEX_OUT/facility_months/<province>/<YYYY-MM>.parquet` — EVERY
+volumetric row at reporting-facility grain, counterparty preserved
+(no `FromToIDType` filter). Same mechanics as `build-wells`: nested-zip
+unwrap, safe CSV options, resumable per month. The full Alberta window
+is ~160 MB (~550,000 rows/month).
+
+This is the table for methane work: well-attributed rows carry only
+~1% of FUEL volume, ~3% of FLARE and ~48% of VENT (measured, 2025-06
+AB) — the rest is reported against facilities and never reaches
+`well_months`.
+
+### `petrinex build-infra`
+
+Normalizes the three business-entity snapshots (Facility
+Infrastructure, Facility Operator History, Business Associate) to
+`$PETRINEX_OUT/infra/<province>_<name>.parquet`, column names kept
+exactly as Petrinex publishes them. Requires a prior `fetch-infra`.
+The Well Infrastructure file is not handled yet (see roadmap) — its
+per-event rows need real modeling, not a straight copy.
+
 ### Typical workflows
 
 First-time setup:
@@ -127,12 +162,15 @@ petrinex probe          # see what's available
 petrinex fetch-vol      # ~420 MB
 petrinex fetch-infra
 petrinex build-wells
+petrinex build-facilities
+petrinex build-infra
 ```
 
-Monthly refresh (safe to run blindly — every step is incremental):
+Monthly refresh (safe to run blindly — every step is incremental;
+re-fetching infra refreshes the current-state snapshots):
 
 ```sh
-petrinex fetch-vol && petrinex build-wells
+petrinex fetch-vol && petrinex build-wells && petrinex build-facilities
 ```
 
 Then query from anything that reads parquet:
@@ -163,6 +201,46 @@ well (`FromToIDType='WI'`), **all** activities kept:
 
 Scale (Alberta): ~137,000 producing wells and ~350,000 well rows per
 month; 55 months currently public.
+
+## Output: `facility_months`
+
+One parquet per production month; **every** volumetric row, keyed on
+the reporting facility, counterparty preserved:
+
+| column | meaning |
+|---|---|
+| `month`, `facility_id` | production month, Petrinex FacilityID (`ABBT...`) |
+| `facility_type`, `facility_subtype` | `BT`/`GS`/`GP`/`IF` + subtype desc |
+| `operator_baid`, `operator_name` | operator of record that month |
+| `activity`, `product` | as in `well_months`, plus facility-only rows |
+| `from_to_id`, `from_to_type` | counterparty: well (`WI`), facility, or self |
+| `volume`, `hours`, `energy` | m³ (gas: e3m³), hours, GJ |
+
+The `from_to_type='WI'` cut of this table is exactly `well_months`
+(row-for-row; verified). Facility self-referencing VENT/FLARE/FUEL
+rows are additive equipment-level volumes, not duplicated totals of
+the per-well allocations (verified on 2025-06: where both exist their
+sums differ; near-equal cases are confined to <5 m³ noise) — so
+summing all rows per facility is the correct facility total.
+
+## Output: business-entity tables (`data/infra/`)
+
+Three snapshot parquets tying business associates to facilities, from
+`build-infra` (columns exactly as Petrinex names them):
+
+| table | rows (AB) | keys |
+|---|---|---|
+| `facility_infrastructure` | 125k | `FacilityID` -> operator + licensee BAIDs |
+| `facility_operator_history` | 375k | `FacilityID` + month range -> operator |
+| `business_associate` | 19k | `BAIdentifier`; `AmalgamatedIntoBAID` chain |
+
+Three ways to tie an operator to a facility, in order of preference:
+the monthly `operator_baid` already on every `facility_months` row
+(operator of record for that month); the operator-history table for
+attributing arbitrary months across transfers (covers 100% of current
+facilities; ~6,600 facilities changed operator between 2022-03 and
+today); and the BA registry for entity metadata and rolling
+amalgamated BAs into their successors.
 
 ## The traps this repo already stepped in
 
@@ -239,15 +317,14 @@ fetch with it.
 - [shut-in-prediction](../shut-in-prediction) — early-warning hazard model
   for Alberta well inactivity.
 - [methane-outliers](../methane-outliers) — vent/flare/fuel peer-expectation
-  models (planned; will add a facility-level table here).
+  models, built on `facility_months` + the business-entity tables.
 - [well-spacing-playbook](../well-spacing-playbook) — the well-interference
   project this layer was extracted from.
 
 ## Roadmap
 
-- `build-facilities`: facility-month table (all activities at facility
-  grain) for methane work.
 - Verified SK end-to-end build.
-- Well Infrastructure CSV -> parquet normalizer.
+- Well Infrastructure CSV -> parquet normalizer (per-event rows; needs
+  modeling, unlike the straight-copy snapshots in `build-infra`).
 
 [logo]: https://www.petrinex.ca/media/l1paitxk/petrinexlogo.jpg?width=280&height=120&v=1dac7d2bcab8d70

@@ -15,7 +15,18 @@ from . import config
 VOL_URL = "https://www.petrinex.gov.ab.ca/publicdata/API/Files/{province}/Vol/{month}/CSV"
 INFRA_URL = (
     "https://www.petrinex.gov.ab.ca/publicdata/API/Files/{province}"
-    "/Infra/Well%20Infrastructure/CSV"
+    "/Infra/{file}/CSV"
+)
+
+# Current-state snapshot files under Infra/. The last three tie business
+# entities to facilities: facility -> operator + licensee BAIDs (current),
+# the full operatorship time series, and the BA registry itself (legal
+# name, corporate status, amalgamation chain).
+INFRA_FILES = (
+    "Well Infrastructure",
+    "Facility Infrastructure",
+    "Facility Operator History",
+    "Business Associate",
 )
 
 
@@ -102,6 +113,10 @@ def fetch_vol(province: str = "AB",
           f"{total / 1e6:.0f} MB in {out}")
 
 
-def fetch_infra(province: str = "AB") -> None:
-    """Fetch the Well Infrastructure CSV (per-event well headers)."""
-    _download(INFRA_URL.format(province=province), config.infra_zip(province))
+def fetch_infra(province: str = "AB",
+                names: tuple[str, ...] = INFRA_FILES) -> None:
+    """Fetch the infrastructure snapshot CSVs. Unlike volumetrics these
+    are current-state files, so re-running always overwrites them."""
+    for name in names:
+        url = INFRA_URL.format(province=province, file=name.replace(" ", "%20"))
+        _download(url, config.infra_zip(province, name))

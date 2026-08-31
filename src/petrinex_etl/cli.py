@@ -1,7 +1,7 @@
 """Command line interface: petrinex <command> [--province AB|SK]."""
 import argparse
 
-from . import fetch, wells
+from . import facilities, fetch, infra, wells
 
 
 def main() -> None:
@@ -12,8 +12,13 @@ def main() -> None:
     fv = sub.add_parser("fetch-vol", help="download monthly volumetric zips")
     fv.add_argument("--first", help="YYYY-MM (default: probe the window)")
     fv.add_argument("--last", help="YYYY-MM (default: probe the window)")
-    sub.add_parser("fetch-infra", help="download the Well Infrastructure CSV")
+    sub.add_parser("fetch-infra",
+                   help="download the infrastructure snapshot CSVs")
     sub.add_parser("build-wells", help="build well_months parquet from raw zips")
+    sub.add_parser("build-facilities",
+                   help="build facility_months parquet from raw zips")
+    sub.add_parser("build-infra",
+                   help="normalize facility/operator/BA snapshots to parquet")
     a = p.parse_args()
     if a.cmd == "probe":
         w = fetch.probe_window(a.province)
@@ -24,6 +29,10 @@ def main() -> None:
         fetch.fetch_infra(a.province)
     elif a.cmd == "build-wells":
         wells.build(a.province)
+    elif a.cmd == "build-facilities":
+        facilities.build(a.province)
+    elif a.cmd == "build-infra":
+        infra.build(a.province)
 
 
 if __name__ == "__main__":
