@@ -282,6 +282,26 @@ join), and the location exception is **alphanumeric** (`AA`, `F1`, `W0` —
 a digits-only pattern drops 11.7% of Alberta). Match rate on all of
 Alberta ST37: 99.99% (532,553/532,623).
 
+## DLS location -> lat/lon (`petrinex_etl.dls`)
+
+Petrinex facility (and well) surface locations are Alberta Township
+System coordinates. `latlon_from_dls(twp, rge, mer, sec=, lsd=)`
+converts them to centroid lat/lon with no lookup tables:
+
+```python
+>>> latlon_from_dls(10, 15, 4, sec=19, lsd=7)
+(49.8351..., -112.0271...)   # ST37 surveyed: 49.8359, -112.0240
+```
+
+The five model constants are least-squares fits against 532,623 AER
+ST37 surveyed well locations. Measured accuracy on that population:
+**p50 267 m, p90 1.6 km, p99 3.2 km** — LSD-centroid quality, fine
+for mapping, not for survey work. One non-obvious modeling fact:
+ranges are surveyed from baselines every 4 townships, so scaling
+longitude by cos(baseline latitude) instead of cos(well latitude)
+cuts median error from 374 m to 266 m. Covers 100.0% of AB
+facilities (124,912/124,919 have usable DLS parts).
+
 ### PPDM and format lineage
 
 The outputs here are a plain analytical schema, not PPDM — column names
