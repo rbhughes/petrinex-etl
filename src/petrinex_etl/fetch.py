@@ -182,7 +182,34 @@ def fetch_vol(province: str = "AB",
 def fetch_infra(province: str = "AB",
                 names: tuple[str, ...] = INFRA_FILES) -> None:
     """Fetch the infrastructure snapshot CSVs. Unlike volumetrics these
-    are current-state files, so re-running always overwrites them."""
+    are current-state files, so re-running always overwrites them.
+
+    Graceful staleness: Petrinex's own regeneration sometimes breaks
+    for individual files (observed 2026-09: 'Well Infrastructure' and
+    'Business Associate' 404ed for days while the portal still listed
+    them). When a download exhausts its retries but a previous
+    snapshot exists on disk -- e.g. restored from the CI cache -- warn
+    loudly and keep the stale copy instead of failing the whole run.
+    A missing file with NO previous snapshot is still fatal.
+    """
+    import datetime
+
+    stale: list[str] = []
     for name in names:
         url = INFRA_URL.format(province=province, file=name.replace(" ", "%20"))
-        _download(url, config.infra_zip(province, name))
+        dest = config.infra_zip(province, name)
+        try:
+            _download(url, dest)
+        except requests.HTTPError as e:
+            if not dest.exists():
+                raise
+            age = datetime.datetime.now() - datetime.datetime.fromtimestamp(
+                dest.stat().st_mtime
+            )
+            print(f"  WARNING: {name}: {e}; using previous snapshot "
+                  f"({age.days}d old) at {dest}")
+            stale.append(name)
+    if stale:
+        print(f"  STALE snapshots this run: {', '.join(stale)} -- "
+              f"Petrinex's generation is broken for these; they will "
+              f"refresh automatically once the source recovers.")
