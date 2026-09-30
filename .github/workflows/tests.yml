@@ -1,0 +1,33 @@
+# Unit tests, on every push and PR. Nothing here touches the network: the
+# fetch tests monkeypatch requests.get with a scripted fake (and sleep
+# with a no-op, so retry backoff costs nothing), and the rest work on
+# values. The suite takes well under a second.
+#
+# pytest is declared in the `dev` extra, and plain `uv sync` does not
+# install an extra, so the flag below is load-bearing.
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.1.0
+
+      - name: Install (with dev extra)
+        run: uv sync --extra dev
+
+      - name: Run tests
+        run: uv run pytest -q
