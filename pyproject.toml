@@ -3,7 +3,8 @@ name = "petrinex-etl"
 version = "0.1.0"
 description = "Fetch and normalize Petrinex public volumetric data (Alberta, Saskatchewan)"
 requires-python = ">=3.12"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "duckdb>=1.0",
     "requests>=2.32",
@@ -16,7 +17,7 @@ petrinex = "petrinex_etl.cli:main"
 dev = ["pytest>=8"]
 
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
